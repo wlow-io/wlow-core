@@ -17,5 +17,4 @@ func dialVsock(_ context.Context, _, _ uint32) (net.Conn, error) {
 	return nil, errors.New("vsock not supported on this platform; set WLOW_VSOCK_PATH for unix-socket fallback")
 }
 
-
 func configureCommandRoot(_ *exec.Cmd, _ string) {}

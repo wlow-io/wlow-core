@@ -9,16 +9,19 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+// Server implements the artifact protocol over NATS.
 type Server struct {
 	store *Store
 	log   *slog.Logger
 }
 
+// ServerConfig configures an artifact server.
 type ServerConfig struct {
 	Store  *Store
 	Logger *slog.Logger
 }
 
+// NewServer creates a new artifact server.
 func NewServer(cfg ServerConfig) (*Server, error) {
 	if cfg.Store == nil {
 		return nil, errors.New("artifact store required")
@@ -29,6 +32,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	return &Server{store: cfg.Store, log: cfg.Logger}, nil
 }
 
+// Subscribe registers artifact protocol handlers on the provided NATS connection.
 func (s *Server) Subscribe(nc *nats.Conn) ([]*nats.Subscription, error) {
 	if nc == nil {
 		return nil, errors.New("nats connection required")

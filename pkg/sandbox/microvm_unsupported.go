@@ -11,10 +11,12 @@ type unsupportedMicroVMExecutor struct {
 	runtime artifact.Runtime
 }
 
+// NewMicroVMExecutor returns a stub executor for microVM runtimes on unsupported platforms.
 func NewMicroVMExecutor(_ string) Executor {
 	return unsupportedMicroVMExecutor{runtime: artifact.RuntimeMicroVM}
 }
 
+// NewSnapshotExecutor returns a stub executor for snapshot runtimes on unsupported platforms.
 func NewSnapshotExecutor(_ string) Executor {
 	return unsupportedMicroVMExecutor{runtime: artifact.RuntimeSnapshot}
 }

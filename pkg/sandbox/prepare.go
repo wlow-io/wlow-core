@@ -12,6 +12,7 @@ import (
 	"github.com/wlow/wlow/pkg/artifact"
 )
 
+// SnapshotPrepareConfig configures the preparation of a microVM snapshot.
 type SnapshotPrepareConfig struct {
 	Store       *artifact.Store
 	DataDir     string
@@ -24,10 +25,12 @@ type SnapshotPrepareConfig struct {
 	NATSURL     string
 }
 
+// SnapshotPreparer handles the end-to-end flow of creating a microVM snapshot.
 type SnapshotPreparer struct {
 	cfg SnapshotPrepareConfig
 }
 
+// NewSnapshotPreparer creates a new snapshot preparer.
 func NewSnapshotPreparer(cfg SnapshotPrepareConfig) (*SnapshotPreparer, error) {
 	if cfg.Store == nil {
 		return nil, errors.New("artifact store required")
@@ -47,6 +50,7 @@ func NewSnapshotPreparer(cfg SnapshotPrepareConfig) (*SnapshotPreparer, error) {
 	return &SnapshotPreparer{cfg: cfg}, nil
 }
 
+// Prepare executes the snapshot preparation process and uploads the result.
 func (p *SnapshotPreparer) Prepare(ctx context.Context) (*artifact.Manifest, error) {
 	if ctx == nil {
 		return nil, errors.New("context required")

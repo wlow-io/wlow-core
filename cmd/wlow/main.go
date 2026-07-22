@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -355,10 +356,9 @@ func buildProcessor(ctx context.Context, cfg *pushConfig) (*build.Spec, func(), 
 	return spec, cleanup, nil
 }
 
-func usesObjectUpload(cfg *pushConfig) bool {
+func usesObjectUpload(_ *pushConfig) bool {
 	return false
 }
-
 
 func usesRegistryLayout(cfg *pushConfig) bool {
 	return cfg.Source == build.SourceDockerfile &&
@@ -500,7 +500,11 @@ func unpackTar(tarPath string, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			slog.Default().Error("close tar file failed", "error", err)
+		}
+	}()
 	tr := tar.NewReader(file)
 	const maxEntries = 1 << 18
 	for count := 0; count < maxEntries; count++ {
@@ -529,7 +533,7 @@ func writeTarEntry(dest string, header *tar.Header, tr *tar.Reader) error {
 	switch header.Typeflag {
 	case tar.TypeDir:
 		return os.MkdirAll(target, os.FileMode(header.Mode)&0o777)
-	case tar.TypeReg, tar.TypeRegA:
+	case tar.TypeReg:
 		return writeTarFile(target, header, tr)
 	case tar.TypeSymlink:
 		return writeTarSymlink(dest, target, header.Linkname)
@@ -605,7 +609,12 @@ func copyFile(src string, dest string, mode os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() {
+		if err := in.Close(); err != nil {
+			slog.Default().Error("close source file failed", "error", err)
+		}
+	}()
+
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
@@ -613,7 +622,11 @@ func copyFile(src string, dest string, mode os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		if err := out.Close(); err != nil {
+			slog.Default().Error("close destination file failed", "error", err)
+		}
+	}()
 	if _, err := io.Copy(out, in); err != nil {
 		return err
 	}

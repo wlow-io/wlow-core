@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -25,20 +26,29 @@ import (
 )
 
 const (
-	MediaTypeSnapshotConfig      = "application/vnd.wlow.snapshot.config.v1+json"
-	MediaTypeSnapshotState       = "application/vnd.wlow.snapshot.state.v1+json"
-	MediaTypeSnapshotMemory      = "application/vnd.wlow.snapshot.memory.v1"
+	// MediaTypeSnapshotConfig is the OCI media type for microVM snapshot configuration.
+	MediaTypeSnapshotConfig = "application/vnd.wlow.snapshot.config.v1+json"
+	// MediaTypeSnapshotState is the OCI media type for microVM execution state.
+	MediaTypeSnapshotState = "application/vnd.wlow.snapshot.state.v1+json"
+	// MediaTypeSnapshotMemory is the OCI media type for microVM memory dump.
+	MediaTypeSnapshotMemory = "application/vnd.wlow.snapshot.memory.v1"
+	// MediaTypeSnapshotMemoryIndex is the OCI media type for microVM memory page index.
 	MediaTypeSnapshotMemoryIndex = "application/vnd.wlow.snapshot.memory.index.v1+json"
+	// MediaTypeSnapshotMemoryChunk is the OCI media type for a compressed memory chunk.
 	MediaTypeSnapshotMemoryChunk = "application/vnd.wlow.snapshot.memory.chunk.v1+gzip"
-	MediaTypeSnapshotRootfs      = "application/vnd.wlow.snapshot.rootfs.v1"
-	MediaTypeRootfsEROFS         = "application/vnd.wlow.rootfs.erofs.v1"
+	// MediaTypeSnapshotRootfs is the OCI media type for microVM root filesystem.
+	MediaTypeSnapshotRootfs = "application/vnd.wlow.snapshot.rootfs.v1"
+	// MediaTypeRootfsEROFS is the OCI media type for an EROFS root filesystem image.
+	MediaTypeRootfsEROFS = "application/vnd.wlow.rootfs.erofs.v1"
 )
 
+// RemoteImageDescriptor associates an OCI descriptor with its role in a manifest.
 type RemoteImageDescriptor struct {
 	Descriptor OCIDescriptor
 	Role       string
 }
 
+// InspectRemoteOCI retrieves metadata for an OCI image and converts it to a manifest.
 func InspectRemoteOCI(ctx context.Context, imageRef string, opts PushOptions) (*Manifest, error) {
 	ref, err := name.ParseReference(imageRef)
 	if err != nil {
@@ -179,6 +189,7 @@ func remoteOCIManifest(opts PushOptions, imageRef, hash string, size int64, desc
 	return m
 }
 
+// PushSnapshotImage uploads a microVM snapshot as an OCI image.
 func PushSnapshotImage(ctx context.Context, imageRef string, files SnapshotFiles) (SnapshotObjects, string, int64, error) {
 	ref, err := name.ParseReference(imageRef)
 	if err != nil {
@@ -204,6 +215,7 @@ func PushSnapshotImage(ctx context.Context, imageRef string, files SnapshotFiles
 	return refs, hash.String(), size, nil
 }
 
+// PushRootfsImage uploads an EROFS rootfs image as an OCI image.
 func PushRootfsImage(ctx context.Context, imageRef string, rootfsPath string) (*RemoteRef, string, int64, error) {
 	if imageRef == "" {
 		return nil, "", 0, errors.New("rootfs image ref required")
@@ -259,6 +271,7 @@ func attachSnapshotRepo(objects *SnapshotObjects, repo name.Repository) {
 	}
 }
 
+// PullRemoteFile downloads a file from an OCI registry based on a RemoteRef.
 func PullRemoteFile(ctx context.Context, remoteRef *RemoteRef, dest string) error {
 	if remoteRef == nil {
 		return errors.New("remote ref required")
@@ -275,12 +288,21 @@ func PullRemoteFile(ctx context.Context, remoteRef *RemoteRef, dest string) erro
 	if err != nil {
 		return err
 	}
-	defer rc.Close()
+	defer func() {
+		if err := rc.Close(); err != nil {
+			slog.Default().Error("close remote layer reader failed", "error", err)
+		}
+	}()
+
 	out, err := os.OpenFile(dest, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		if err := out.Close(); err != nil {
+			slog.Default().Error("close destination file failed", "error", err)
+		}
+	}()
 	n, err := io.Copy(out, rc)
 	if err != nil {
 		return err
@@ -291,6 +313,7 @@ func PullRemoteFile(ctx context.Context, remoteRef *RemoteRef, dest string) erro
 	return nil
 }
 
+// PullOCILayer downloads a specific OCI layer by digest.
 func PullOCILayer(ctx context.Context, imageRef, digest, dest string) error {
 	if imageRef == "" {
 		return errors.New("image ref required")
@@ -311,12 +334,20 @@ func PullOCILayer(ctx context.Context, imageRef, digest, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer rc.Close()
+	defer func() {
+		if err := rc.Close(); err != nil {
+			slog.Default().Error("close remote layer reader failed", "error", err)
+		}
+	}()
 	out, err := os.OpenFile(dest, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		if err := out.Close(); err != nil {
+			slog.Default().Error("close destination file failed", "error", err)
+		}
+	}()
 	_, err = io.Copy(out, rc)
 	return err
 }

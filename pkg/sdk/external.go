@@ -23,14 +23,21 @@ type ExecProcessor struct {
 	Timeout time.Duration
 }
 
+// NewExecProcessor creates a new ExecProcessor.
 func NewExecProcessor(cmd string, args ...string) *ExecProcessor {
 	return &ExecProcessor{Cmd: cmd, Args: args, Timeout: 5 * time.Minute}
 }
 
+// WithTimeout sets the execution timeout.
 func (p *ExecProcessor) WithTimeout(d time.Duration) *ExecProcessor { p.Timeout = d; return p }
-func (p *ExecProcessor) WithDir(d string) *ExecProcessor            { p.Dir = d; return p }
-func (p *ExecProcessor) WithEnv(e ...string) *ExecProcessor         { p.Env = append(p.Env, e...); return p }
 
+// WithDir sets the working directory for the executable.
+func (p *ExecProcessor) WithDir(d string) *ExecProcessor { p.Dir = d; return p }
+
+// WithEnv adds environment variables to the executable.
+func (p *ExecProcessor) WithEnv(e ...string) *ExecProcessor { p.Env = append(p.Env, e...); return p }
+
+// Process executes the external command and returns the result.
 func (p *ExecProcessor) Process(ctx context.Context, in Dynamic) (Dynamic, error) {
 	if p.Timeout > 0 {
 		var cancel context.CancelFunc
@@ -69,14 +76,17 @@ func (p *ExecProcessor) Process(ctx context.Context, in Dynamic) (Dynamic, error
 
 // Script processors
 
+// NewPythonProcessor creates a new Python processor.
 func NewPythonProcessor(path string, args ...string) *ExecProcessor {
 	return NewExecProcessor("python3", append([]string{path}, args...)...)
 }
 
+// NewNodeProcessor creates a new Node.js processor.
 func NewNodeProcessor(path string, args ...string) *ExecProcessor {
 	return NewExecProcessor("node", append([]string{path}, args...)...)
 }
 
+// NewBashProcessor creates a new Bash processor.
 func NewBashProcessor(path string, args ...string) *ExecProcessor {
 	return NewExecProcessor("bash", append([]string{path}, args...)...)
 }
@@ -89,13 +99,18 @@ type HTTPProcessor struct {
 	Timeout time.Duration
 }
 
+// NewHTTPProcessor creates a new HTTP processor.
 func NewHTTPProcessor(url string) *HTTPProcessor {
 	return &HTTPProcessor{URL: url, Headers: make(map[string]string), Timeout: 30 * time.Second}
 }
 
-func (p *HTTPProcessor) WithHeader(k, v string) *HTTPProcessor      { p.Headers[k] = v; return p }
+// WithHeader adds a header to the HTTP request.
+func (p *HTTPProcessor) WithHeader(k, v string) *HTTPProcessor { p.Headers[k] = v; return p }
+
+// WithTimeout sets the HTTP request timeout.
 func (p *HTTPProcessor) WithTimeout(d time.Duration) *HTTPProcessor { p.Timeout = d; return p }
 
+// Process performs the HTTP POST request and returns the result.
 func (p *HTTPProcessor) Process(ctx context.Context, in Dynamic) (Dynamic, error) {
 	if p.Timeout > 0 {
 		var cancel context.CancelFunc

@@ -9,106 +9,166 @@ import (
 )
 
 const (
-	HashAlgorithm    = "blake3-keyed"
+	// HashAlgorithm is the primary hashing algorithm for artifacts.
+	HashAlgorithm = "blake3-keyed"
+	// HashAlgorithmOCI is the hashing algorithm used for OCI-compatible artifacts.
 	HashAlgorithmOCI = "oci-sha256"
-	ManifestKind     = "wlow.processor.manifest.v1"
+	// ManifestKind is the constant identifier for processor manifest version 1.
+	ManifestKind = "wlow.processor.manifest.v1"
 
-	DefaultTenant       = "default"
-	DefaultChunkTarget  = 64 * 1024
-	DefaultChunkMin     = 16 * 1024
-	DefaultChunkMax     = 256 * 1024
+	// DefaultTenant is the fallback tenant ID.
+	DefaultTenant = "default"
+	// DefaultChunkTarget is the target size for content-defined chunking.
+	DefaultChunkTarget = 64 * 1024
+	// DefaultChunkMin is the minimum size for content-defined chunking.
+	DefaultChunkMin = 16 * 1024
+	// DefaultChunkMax is the maximum size for content-defined chunking.
+	DefaultChunkMax = 256 * 1024
+	// DefaultMaxChunkSize is the upper bound for any single chunk.
 	DefaultMaxChunkSize = DefaultChunkMax
 
-	BlobBucket      = "wlow-artifact-blobs"  // inline binary artifacts (process scripts, WASM)
-	ChunkBucket     = "wlow-artifact-chunks" // legacy; unused, kept for migration
-	ManifestBucket  = "wlow-artifact-manifests"
-	RefBucket       = "wlow-artifact-refs"
+	// BlobBucket is the NATS KV bucket for binary artifacts.
+	BlobBucket = "wlow-artifact-blobs" // inline binary artifacts (process scripts, WASM)
+	// ChunkBucket is the NATS KV bucket for data chunks.
+	ChunkBucket = "wlow-artifact-chunks" // legacy; unused, kept for migration
+	// ManifestBucket is the NATS KV bucket for processor manifests.
+	ManifestBucket = "wlow-artifact-manifests"
+	// RefBucket is the NATS KV bucket for artifact references.
+	RefBucket = "wlow-artifact-refs"
+	// TenantKeyBucket is the NATS KV bucket for tenant encryption keys.
 	TenantKeyBucket = "wlow-tenant-keys"
-	QuotaBucket     = "wlow-tenant-quotas"
+	// QuotaBucket is the NATS KV bucket for tenant resource quotas.
+	QuotaBucket = "wlow-tenant-quotas"
 )
 
 var safeName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._=-]*$`)
 
+// ExecutionMode defines how a processor is executed (e.g. attached to runner or sandboxed).
 type ExecutionMode string
 
 const (
-	ExecutionAttached  ExecutionMode = "attached"
+	// ExecutionAttached means the processor runs directly in the runner process.
+	ExecutionAttached ExecutionMode = "attached"
+	// ExecutionSandboxed means the processor runs in an isolated sandbox (MicroVM/WASM).
 	ExecutionSandboxed ExecutionMode = "sandboxed"
 )
 
+// Runtime defines the execution environment for a processor.
 type Runtime string
 
 const (
-	RuntimeProcess  Runtime = "process"
-	RuntimeWasm     Runtime = "wasm"
-	RuntimeMicroVM  Runtime = "microvm"
+	// RuntimeProcess runs the processor as a native OS process.
+	RuntimeProcess Runtime = "process"
+	// RuntimeWasm runs the processor as a WebAssembly component.
+	RuntimeWasm Runtime = "wasm"
+	// RuntimeMicroVM runs the processor in a Firecracker microVM.
+	RuntimeMicroVM Runtime = "microvm"
+	// RuntimeSnapshot runs the processor from a microVM memory/disk snapshot.
 	RuntimeSnapshot Runtime = "snapshot"
 )
 
+// IOProtocol defines the communication protocol between the runner and processor.
 type IOProtocol string
 
 const (
-	IOProtocolExternRefJSON     IOProtocol = "externref-json-v0"
-	IOProtocolJSONStdio         IOProtocol = "json-stdin-stdout-v0"
-	IOProtocolJSONVsock         IOProtocol = "json-vsock-v0"
-	IOProtocolJSONVsockStream   IOProtocol = "json-vsock-stream-v0"
+	// IOProtocolExternRefJSON uses WASM externref for JSON exchange.
+	IOProtocolExternRefJSON IOProtocol = "externref-json-v0"
+	// IOProtocolJSONStdio uses standard I/O for JSON exchange.
+	IOProtocolJSONStdio IOProtocol = "json-stdin-stdout-v0"
+	// IOProtocolJSONVsock uses Firecracker vsock for JSON exchange.
+	IOProtocolJSONVsock IOProtocol = "json-vsock-v0"
+	// IOProtocolJSONVsockStream uses vsock streams for bidirectional JSON.
+	IOProtocolJSONVsockStream IOProtocol = "json-vsock-stream-v0"
+	// IOProtocolComponentWlowCore uses the standard wlow:core WASM component interface.
 	IOProtocolComponentWlowCore IOProtocol = "component-wlow-core-v0"
 )
 
+// Capability defines a permission or interface required by a processor.
 type Capability string
 
 const (
-	CapabilityContext   Capability = "wlow:core/context"
-	CapabilityLog       Capability = "wlow:core/log"
+	// CapabilityContext allows access to workflow context.
+	CapabilityContext Capability = "wlow:core/context"
+	// CapabilityLog allows logging.
+	CapabilityLog Capability = "wlow:core/log"
+	// CapabilityHeartbeat allows sending heartbeats.
 	CapabilityHeartbeat Capability = "wlow:core/heartbeat"
-	CapabilityState     Capability = "wlow:core/state"
-	CapabilityHTTP      Capability = "wlow:net/http"
-	CapabilityBlob      Capability = "wlow:storage/blob"
-	CapabilityMCP       Capability = "wlow:mcp/client"
+	// CapabilityState allows managing processor state.
+	CapabilityState Capability = "wlow:core/state"
+	// CapabilityHTTP allows making outbound HTTP requests.
+	CapabilityHTTP Capability = "wlow:net/http"
+	// CapabilityBlob allows access to blob storage.
+	CapabilityBlob Capability = "wlow:storage/blob"
+	// CapabilityMCP allows using the Model Context Protocol.
+	CapabilityMCP Capability = "wlow:mcp/client"
 )
 
-type ArtifactKind string
+// Kind defines the type of data stored in an artifact.
+// Kind specifies the storage representation of an artifact.
+type Kind string
 
 const (
-	KindBlob           ArtifactKind = "blob"
-	KindObject         ArtifactKind = "object"
-	KindFileTree       ArtifactKind = "file-tree"
-	KindMemorySnapshot ArtifactKind = "memory-snapshot"
-	KindVMState        ArtifactKind = "vm-state"
-	KindVMConfig       ArtifactKind = "vm-config"
-	KindCompiledWasm   ArtifactKind = "compiled-wasm"
-	KindComposite      ArtifactKind = "composite"
-	KindOCIDescriptor  ArtifactKind = "oci-descriptor"
-	KindRemoteObject   ArtifactKind = "remote-object"
+	// KindBlob indicates a flat binary blob.
+	KindBlob Kind = "blob"
+	// KindObject indicates a structured object with metadata.
+	KindObject Kind = "object"
+	// KindFileTree indicates a hierarchical file system tree.
+	KindFileTree Kind = "file-tree"
+	// KindMemorySnapshot indicates a microVM memory state.
+	KindMemorySnapshot Kind = "memory-snapshot"
+	// KindVMState indicates a microVM execution state.
+	KindVMState Kind = "vm-state"
+	// KindVMConfig indicates a microVM configuration.
+	KindVMConfig Kind = "vm-config"
+	// KindCompiledWasm indicates a pre-compiled WASM module.
+	KindCompiledWasm Kind = "compiled-wasm"
+	// KindComposite indicates an artifact composed of other artifacts.
+	KindComposite Kind = "composite"
+	// KindOCIDescriptor indicates a reference to an OCI image layer.
+	KindOCIDescriptor Kind = "oci-descriptor"
+	// KindRemoteObject indicates a reference to a remote external file.
+	KindRemoteObject Kind = "remote-object"
 )
 
 const (
-	RoleOCIIndex            = "oci.index"
-	RoleRootfs              = "rootfs"
-	RoleSnapshotConfig      = "snapshot.config"
-	RoleSnapshotState       = "snapshot.state"
-	RoleSnapshotMemory      = "snapshot.memory"
+	// RoleOCIIndex identifies the OCI index role.
+	RoleOCIIndex = "oci.index"
+	// RoleRootfs identifies the root filesystem role.
+	RoleRootfs = "rootfs"
+	// RoleSnapshotConfig identifies the snapshot configuration role.
+	RoleSnapshotConfig = "snapshot.config"
+	// RoleSnapshotState identifies the snapshot CPU/device state role.
+	RoleSnapshotState = "snapshot.state"
+	// RoleSnapshotMemory identifies the snapshot memory state role.
+	RoleSnapshotMemory = "snapshot.memory"
+	// RoleSnapshotMemoryIndex identifies the snapshot memory page index role.
 	RoleSnapshotMemoryIndex = "snapshot.memory.index"
-	RoleSnapshotRootfs      = "snapshot.rootfs"
-	RoleSnapshotRuntime     = "snapshot.runtime"
+	// RoleSnapshotRootfs identifies the snapshot root filesystem role.
+	RoleSnapshotRootfs = "snapshot.rootfs"
+	// RoleSnapshotRuntime identifies the snapshot runtime metadata role.
+	RoleSnapshotRuntime = "snapshot.runtime"
 )
 
+// ChunkRef represents a content-addressed chunk of data.
 type ChunkRef struct {
 	Hash string `json:"hash"`
 	Size int    `json:"size"`
 }
 
+// BlobRef represents a flat file composed of chunks.
 type BlobRef struct {
 	Size   int64      `json:"size"`
 	Chunks []ChunkRef `json:"chunks"`
 }
 
+// ObjectRef represents a named structured object.
 type ObjectRef struct {
 	Name   string `json:"name"`
 	Size   int64  `json:"size"`
 	Digest string `json:"digest,omitempty"`
 }
 
+// RemoteRef represents a reference to a file stored in an external registry.
 type RemoteRef struct {
 	Ref       string `json:"ref,omitempty"`
 	Digest    string `json:"digest"`
@@ -116,6 +176,7 @@ type RemoteRef struct {
 	MediaType string `json:"media_type,omitempty"`
 }
 
+// OCIDescriptor represents an OCI-compatible image layer descriptor.
 type OCIDescriptor struct {
 	Digest      string            `json:"digest"`
 	MediaType   string            `json:"media_type"`
@@ -124,6 +185,7 @@ type OCIDescriptor struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
+// FileNode represents a single file or directory in a FileTree.
 type FileNode struct {
 	Path   string     `json:"path"`
 	Mode   uint32     `json:"mode"`
@@ -134,18 +196,21 @@ type FileNode struct {
 	Link   string     `json:"link,omitempty"`
 }
 
+// FileTree represents a hierarchical file system layout.
 type FileTree struct {
 	Files []FileNode `json:"files"`
 }
 
+// CompositeRef represents a reference to a sub-artifact in a composite artifact.
 type CompositeRef struct {
-	Role string       `json:"role"`
-	Hash string       `json:"hash"`
-	Kind ArtifactKind `json:"kind,omitempty"`
+	Role string `json:"role"`
+	Hash string `json:"hash"`
+	Kind Kind   `json:"kind,omitempty"`
 }
 
+// Artifact represents a multi-modal data container.
 type Artifact struct {
-	Kind     ArtifactKind      `json:"kind"`
+	Kind     Kind              `json:"kind"`
 	Tree     *FileTree         `json:"tree,omitempty"`
 	Blob     *BlobRef          `json:"blob,omitempty"`
 	Object   *ObjectRef        `json:"object,omitempty"`
@@ -155,12 +220,14 @@ type Artifact struct {
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
+// ResourceHints provides optimization hints for resource allocation.
 type ResourceHints struct {
 	MemoryBytes int64         `json:"memory_bytes,omitempty"`
 	Fuel        uint64        `json:"fuel,omitempty"`
 	Timeout     time.Duration `json:"timeout,omitempty"`
 }
 
+// Manifest is the complete definition of a processor and its assets.
 type Manifest struct {
 	Kind             string              `json:"kind"`
 	Tenant           string              `json:"tenant"`
@@ -185,11 +252,13 @@ type Manifest struct {
 	CreatedAt        time.Time           `json:"created_at"`
 }
 
+// CachePolicy defines the execution caching behavior for a processor.
 type CachePolicy struct {
 	Enabled bool          `json:"enabled"`
 	TTL     time.Duration `json:"ttl,omitempty"`
 }
 
+// Validate checks the manifest for consistency and required fields.
 func (m *Manifest) Validate() error {
 	if m == nil {
 		return errors.New("manifest required")
@@ -229,6 +298,7 @@ func (m *Manifest) Validate() error {
 	return nil
 }
 
+// RuntimeValue returns the manifest runtime or the default (Wasm).
 func (m *Manifest) RuntimeValue() Runtime {
 	if m == nil || m.Runtime == "" {
 		return RuntimeWasm
@@ -236,6 +306,7 @@ func (m *Manifest) RuntimeValue() Runtime {
 	return m.Runtime
 }
 
+// IOProtocolValue returns the manifest I/O protocol or the default (ExternRefJSON).
 func (m *Manifest) IOProtocolValue() IOProtocol {
 	if m == nil || m.IOProtocol == "" {
 		return IOProtocolExternRefJSON
@@ -261,6 +332,7 @@ func (m *Manifest) applyDefaults() {
 	}
 }
 
+// Marshal serializes the manifest to JSON.
 func (m *Manifest) Marshal() ([]byte, error) {
 	if err := m.Validate(); err != nil {
 		return nil, err
@@ -268,6 +340,7 @@ func (m *Manifest) Marshal() ([]byte, error) {
 	return json.Marshal(m)
 }
 
+// DecodeManifest deserializes a manifest from JSON.
 func DecodeManifest(data []byte) (*Manifest, error) {
 	var m Manifest
 	if err := json.Unmarshal(data, &m); err != nil {
@@ -276,18 +349,22 @@ func DecodeManifest(data []byte) (*Manifest, error) {
 	return &m, m.Validate()
 }
 
+// ManifestKey returns the storage key for a manifest version.
 func ManifestKey(tenant, processorID, version string) string {
 	return fmt.Sprintf("%s.processor.%s.%s", normTenant(tenant), processorID, version)
 }
 
+// TagKey returns the storage key for a manifest tag.
 func TagKey(tenant, processorID, tag string) string {
 	return fmt.Sprintf("%s.tag.%s.%s", normTenant(tenant), processorID, tag)
 }
 
+// ChunkKey returns the storage key for a data chunk.
 func ChunkKey(tenant, hash string) string {
 	return fmt.Sprintf("%s.%s", normTenant(tenant), hash)
 }
 
+// RefKey returns the storage key for a reference counter.
 func RefKey(tenant, hash string) string {
 	return fmt.Sprintf("%s.ref.%s", normTenant(tenant), hash)
 }

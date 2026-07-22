@@ -15,6 +15,7 @@ type Resolver interface {
 	ResolveRuntime(ctx context.Context, tenant, processorID, ref string) (artifact.Runtime, error)
 }
 
+// PlacementResolver is a Resolver that can also resolve placement.
 type PlacementResolver interface {
 	Resolver
 	ResolvePlacement(ctx context.Context, tenant, processorID, ref string) (artifact.Runtime, []string, error)
@@ -29,6 +30,7 @@ func SandboxSubjectForRuntime(runtime artifact.Runtime, processorID string) stri
 	return SandboxSubjectForRuntimeWithPrefix("PROCESSOR", runtime, processorID)
 }
 
+// SandboxSubjectForRuntimeWithPrefix returns a sandboxed task subject with a custom prefix.
 func SandboxSubjectForRuntimeWithPrefix(prefix string, runtime artifact.Runtime, processorID string) string {
 	if runtime == "" {
 		runtime = artifact.RuntimeWasm
@@ -36,10 +38,12 @@ func SandboxSubjectForRuntimeWithPrefix(prefix string, runtime artifact.Runtime,
 	return fmt.Sprintf("%s.sandbox.%s.%s", subjectPrefix(prefix), runtime, processorID)
 }
 
+// SandboxSubjectForNode returns a sandboxed task subject for a specific node.
 func SandboxSubjectForNode(nodeID string, runtime artifact.Runtime, processorID string) string {
 	return SandboxSubjectForNodeWithPrefix("PROCESSOR", nodeID, runtime, processorID)
 }
 
+// SandboxSubjectForNodeWithPrefix returns a sandboxed task subject for a specific node with a custom prefix.
 func SandboxSubjectForNodeWithPrefix(prefix string, nodeID string, runtime artifact.Runtime, processorID string) string {
 	if runtime == "" {
 		runtime = artifact.RuntimeWasm
@@ -54,6 +58,7 @@ func RouteTask(ctx context.Context, resolver Resolver, locality *LocalitySchedul
 	return RouteTaskWithProcessorPrefix(ctx, resolver, locality, "PROCESSOR", t)
 }
 
+// RouteTaskWithProcessorPrefix returns the subject to publish a task on with a custom processor prefix.
 func RouteTaskWithProcessorPrefix(ctx context.Context, resolver Resolver, locality *LocalityScheduler, processorSubjectPrefix string, t *Task) (string, error) {
 	if t == nil {
 		return "", fmt.Errorf("task required")

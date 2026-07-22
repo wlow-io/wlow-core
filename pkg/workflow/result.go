@@ -10,12 +10,14 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
+// ResultPublisher is the interface for publishing task results.
 type ResultPublisher interface {
 	Publish(ctx context.Context, subject string, data []byte) error
 	PublishWithID(ctx context.Context, msgID, subject string, data []byte) error
 	PublishCancel(ctx context.Context, wfID string) error
 }
 
+// ResultHandlerConfig is the configuration for a ResultHandler.
 type ResultHandlerConfig struct {
 	Store                  Store
 	Publisher              ResultPublisher
@@ -26,6 +28,7 @@ type ResultHandlerConfig struct {
 	Metrics                Metrics
 }
 
+// ResultHandler handles task results and drives workflow progress.
 type ResultHandler struct {
 	store                  Store
 	pub                    ResultPublisher
@@ -36,6 +39,7 @@ type ResultHandler struct {
 	metrics                Metrics
 }
 
+// NewResultHandler creates a new ResultHandler.
 func NewResultHandler(cfg ResultHandlerConfig) *ResultHandler {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -54,53 +58,54 @@ func NewResultHandler(cfg ResultHandlerConfig) *ResultHandler {
 	}
 }
 
+// HandleResult processes a task result message.
 func (h *ResultHandler) HandleResult(msg jetstream.Msg) {
 	var r TaskResult
 	if err := json.Unmarshal(msg.Data(), &r); err != nil {
 		h.log.Error("unmarshal failed", "error", err)
-		msg.Nak()
+		_ = msg.Nak()
 		return
 	}
 
 	log := h.log.With("workflow_id", r.WorkflowID, "task_id", r.TaskID)
 	if r.WorkflowID == "" || r.TaskID == "" {
 		log.Error("invalid result identifiers")
-		msg.Nak()
+		_ = msg.Nak()
 		return
 	}
 	if r.Status == "" {
 		log.Error("invalid result status")
-		msg.Nak()
+		_ = msg.Nak()
 		return
 	}
 
 	wf, err := h.store.GetWorkflow(context.Background(), r.WorkflowID)
 	if err != nil {
 		log.Error("get workflow failed", "error", err)
-		msg.Nak()
+		_ = msg.Nak()
 		return
 	}
 	if err := h.store.StoreTaskState(context.Background(), r.WorkflowID, r.TaskID, &r); err != nil {
 		log.Error("store result failed", "error", err)
-		msg.Nak()
+		_ = msg.Nak()
 		return
 	}
 
 	done, err := h.store.IsWorkflowCompleted(context.Background(), r.WorkflowID)
 	if err != nil {
 		log.Error("check complete failed", "error", err)
-		msg.Nak()
+		_ = msg.Nak()
 		return
 	}
 
 	if done {
 		h.finalize(context.Background(), wf, &r, log)
-		msg.Ack()
+		_ = msg.Ack()
 		return
 	}
 
 	h.publishReady(context.Background(), wf, r.TaskID, log)
-	msg.Ack()
+	_ = msg.Ack()
 }
 
 func (h *ResultHandler) finalize(ctx context.Context, wf *Workflow, r *TaskResult, log *slog.Logger) {
@@ -119,7 +124,7 @@ func (h *ResultHandler) finalize(ctx context.Context, wf *Workflow, r *TaskResul
 	if result.Status == StatusFailed {
 		h.metrics.WorkflowFailed(r.WorkflowID)
 		if r.ErrorMessage != "" {
-			result.Error = &WorkflowError{
+			result.Error = &Error{
 				ProcessorID: r.ProcessorID,
 				TaskID:      r.TaskID,
 				Message:     r.ErrorMessage,
@@ -196,21 +201,25 @@ func (h *ResultHandler) publishTask(ctx context.Context, t *Task, log *slog.Logg
 	}
 }
 
+// NATSPublisher implements ResultPublisher using NATS and JetStream.
 type NATSPublisher struct {
 	js                    jetstream.JetStream
 	nc                    *nats.Conn
 	workflowSubjectPrefix string
 }
 
+// NewNATSResultPublisher creates a new NATSPublisher.
 func NewNATSResultPublisher(nc *nats.Conn, js jetstream.JetStream, workflowSubjectPrefix string) *NATSPublisher {
 	return &NATSPublisher{js: js, nc: nc, workflowSubjectPrefix: workflowSubjectPrefix}
 }
 
+// Publish sends a message to a NATS subject.
 func (p *NATSPublisher) Publish(ctx context.Context, subj string, data []byte) error {
 	_, err := p.js.Publish(ctx, subj, data)
 	return err
 }
 
+// PublishWithID sends a message with a specific NATS Message ID for deduplication.
 func (p *NATSPublisher) PublishWithID(ctx context.Context, id, subj string, data []byte) error {
 	_, err := p.js.PublishMsg(ctx, &nats.Msg{Subject: subj, Data: data}, jetstream.WithMsgID(id))
 	if err == nil {
@@ -228,7 +237,8 @@ func (p *NATSPublisher) PublishWithID(ctx context.Context, id, subj string, data
 	return p.nc.Flush()
 }
 
+// PublishCancel sends a cancellation message for a workflow.
 func (p *NATSPublisher) PublishCancel(ctx context.Context, wfID string) error {
-	_, err := p.js.Publish(ctx, WorkflowCancelSubject(p.workflowSubjectPrefix, wfID), nil)
+	_, err := p.js.Publish(ctx, CancelSubject(p.workflowSubjectPrefix, wfID), nil)
 	return err
 }

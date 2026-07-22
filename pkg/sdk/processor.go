@@ -17,6 +17,7 @@ type Processor[In, Out any] interface {
 // Func adapts a function to the Processor interface.
 type Func[In, Out any] func(ctx context.Context, input In) (Out, error)
 
+// Process implements the Processor interface for Func.
 func (f Func[In, Out]) Process(ctx context.Context, input In) (Out, error) {
 	return f(ctx, input)
 }
@@ -126,6 +127,7 @@ type ProgressReporter interface {
 
 // Validation
 
+// SchemaField defines a single field in a processor input/output schema.
 type SchemaField struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
@@ -133,11 +135,13 @@ type SchemaField struct {
 	Required    bool   `json:"required,omitempty"`
 }
 
+// ValidationError is returned when schema validation fails.
 type ValidationError struct {
 	Field  string
 	Errors []string
 }
 
+// Error returns a string representation of the validation error.
 func (e *ValidationError) Error() string {
 	return fmt.Sprintf("%s validation failed: %s", e.Field, strings.Join(e.Errors, "; "))
 }

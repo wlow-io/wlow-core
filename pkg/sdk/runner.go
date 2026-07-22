@@ -17,6 +17,7 @@ import (
 	"github.com/wlow/wlow/pkg/workflow"
 )
 
+// RunnerConfig contains the configuration for a processor SDK runner.
 type RunnerConfig struct {
 	NATSUrl     string
 	ProcessorID string
@@ -29,6 +30,7 @@ type RunnerConfig struct {
 	Logger      *slog.Logger
 }
 
+// DefaultRunnerConfig returns the default configuration for a runner.
 func DefaultRunnerConfig() RunnerConfig {
 	return RunnerConfig{
 		NATSUrl:     "nats://localhost:4222",
@@ -41,6 +43,7 @@ func DefaultRunnerConfig() RunnerConfig {
 	}
 }
 
+// Runner manages the execution of a processor by listening to NATS.
 type Runner struct {
 	cfg      RunnerConfig
 	handler  Handler
@@ -100,6 +103,7 @@ func NewRunnerFor[In, Out any](cfg RunnerConfig, p Processor[In, Out]) (*Runner,
 	return NewRunner(cfg, Wrap(p))
 }
 
+// Run starts the runner and blocks until it is stopped or a signal is received.
 func (r *Runner) Run(ctx context.Context) error {
 	client, err := nats.NewClient(nats.Config{URL: r.cfg.NATSUrl})
 	if err != nil {
@@ -149,11 +153,14 @@ func (r *Runner) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return r.shutdown()
+			r.shutdown()
+			return nil
 		case <-sig:
-			return r.shutdown()
+			r.shutdown()
+			return nil
 		case <-r.stop:
-			return r.shutdown()
+			r.shutdown()
+			return nil
 		default:
 			if len(r.inFlight) >= cap(r.inFlight) {
 				time.Sleep(50 * time.Millisecond)
@@ -173,28 +180,28 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 }
 
+// Stop sends a signal to stop the runner.
 func (r *Runner) Stop() { close(r.stop) }
 
-func (r *Runner) shutdown() error {
+func (r *Runner) shutdown() {
 	r.log.Info("shutting down")
 	for len(r.inFlight) > 0 {
 		time.Sleep(50 * time.Millisecond)
 	}
-	return nil
 }
 
 func (r *Runner) handle(msg jetstream.Msg) {
 	var t workflow.Task
 	if err := json.Unmarshal(msg.Data(), &t); err != nil {
 		r.log.Error("unmarshal", "error", err)
-		msg.Nak()
+		_ = msg.Nak()
 		return
 	}
 
 	log := r.log.With("wf", t.WorkflowID, "task", t.ID)
 
 	if st, _ := r.store.GetTaskState(context.Background(), t.WorkflowID, t.ID); st != nil && st.Status == workflow.StatusCancelled {
-		msg.Ack()
+		_ = msg.Ack()
 		return
 	}
 
@@ -212,11 +219,11 @@ func (r *Runner) handle(msg jetstream.Msg) {
 
 	cancelSub, _ := r.client.SubscribeSync(fmt.Sprintf("workflow.cancel.%s", t.WorkflowID))
 	if cancelSub != nil {
-		defer cancelSub.Unsubscribe()
+		defer func() { _ = cancelSub.Unsubscribe() }()
 		go r.watchCancel(ctx, cancelSub, t.ID)
 	}
 
-	r.store.StoreTaskState(context.Background(), t.WorkflowID, t.ID, &workflow.TaskResult{
+	_ = r.store.StoreTaskState(context.Background(), t.WorkflowID, t.ID, &workflow.TaskResult{
 		WorkflowID:  t.WorkflowID,
 		TaskID:      t.ID,
 		ProcessorID: r.cfg.ProcessorID,
@@ -224,20 +231,20 @@ func (r *Runner) handle(msg jetstream.Msg) {
 	})
 
 	result := r.execute(ctx, &t)
-	r.store.StoreTaskState(context.Background(), result.WorkflowID, result.TaskID, result)
+	_ = r.store.StoreTaskState(context.Background(), result.WorkflowID, result.TaskID, result)
 
 	data, _ := json.Marshal(result)
 
 	if result.Status == workflow.StatusFailed || result.Status == workflow.StatusTimedOut {
 		if meta, _ := msg.Metadata(); meta != nil && int(meta.NumDelivered) < r.cfg.MaxRetries {
-			msg.Nak()
+			_ = msg.Nak()
 			return
 		}
 	}
 
-	r.client.Publish(context.Background(), fmt.Sprintf("workflow.result.%s", t.ID), data)
+	_, _ = r.client.Publish(context.Background(), fmt.Sprintf("workflow.result.%s", t.ID), data)
 	log.Info("done", "status", result.Status)
-	msg.Ack()
+	_ = msg.Ack()
 }
 
 func (r *Runner) execute(ctx context.Context, t *workflow.Task) *workflow.TaskResult {
@@ -289,6 +296,7 @@ func (r *Runner) watchCancel(ctx context.Context, sub *gonats.Subscription, task
 	}
 }
 
+// ReportProgress updates the progress of the current workflow in the store.
 func (r *Runner) ReportProgress(ctx context.Context, wfID string, _ int) error {
 	return r.store.UpdateProgress(ctx, wfID)
 }

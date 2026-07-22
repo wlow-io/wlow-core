@@ -19,8 +19,8 @@ import (
 
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/wlow/wlow/pkg/artifact"
-	"github.com/wlow/wlow/pkg/sdk"
 	wlownats "github.com/wlow/wlow/pkg/nats"
+	"github.com/wlow/wlow/pkg/sdk"
 	"github.com/wlow/wlow/pkg/workflow"
 )
 
@@ -208,7 +208,12 @@ func (s *mcpServer) listProcessors(ctx context.Context, args json.RawMessage) (a
 	if err != nil {
 		return nil, fmt.Errorf("list processors: %w", err)
 	}
-	defer watcher.Stop()
+
+	defer func() {
+		if err := watcher.Stop(); err != nil {
+			slog.Default().Error("watcher.Stop() failed", "error", err)
+		}
+	}()
 
 	seen := make(map[string]bool)
 	var processors []map[string]string

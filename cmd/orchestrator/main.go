@@ -166,7 +166,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 	cancelConsumer, err := client.CreateConsumer(ctx, nats.ConsumerConfig{
 		Name:          "cancel-consumer",
 		Stream:        streamName,
-		FilterSubject: workflow.CancelSubject(cfg.WorkflowSubjectPrefix),
+		FilterSubject: workflow.CancelRequestSubject(cfg.WorkflowSubjectPrefix),
 		MaxDeliver:    cfg.MaxRetries,
 		AckWait:       cfg.AckTimeout,
 	})

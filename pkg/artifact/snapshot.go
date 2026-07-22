@@ -2,16 +2,11 @@ package artifact
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
-	"io"
-	"os"
-	"strings"
 	"time"
-
-	"github.com/zeebo/blake3"
 )
 
+// SnapshotFiles contains local file paths for a microVM snapshot.
 type SnapshotFiles struct {
 	Config string
 	State  string
@@ -20,13 +15,19 @@ type SnapshotFiles struct {
 }
 
 const (
-	SnapshotConfigFile      = "vm-config.json"
-	SnapshotStateFile       = "vm-state.bin"
-	SnapshotMemoryFile      = "vm-memory.bin"
+	// SnapshotConfigFile is the standard filename for microVM snapshot configuration.
+	SnapshotConfigFile = "vm-config.json"
+	// SnapshotStateFile is the standard filename for microVM CPU and device state.
+	SnapshotStateFile = "vm-state.bin"
+	// SnapshotMemoryFile is the standard filename for microVM memory dump.
+	SnapshotMemoryFile = "vm-memory.bin"
+	// SnapshotMemoryIndexFile is the standard filename for microVM memory page index.
 	SnapshotMemoryIndexFile = "snapshot.memory.index"
-	SnapshotRootfsFile      = "rootfs.img"
+	// SnapshotRootfsFile is the standard filename for microVM root filesystem image.
+	SnapshotRootfsFile = "rootfs.img"
 )
 
+// PutSnapshotArtifact uploads a microVM snapshot to the artifact store.
 func (s *Store) PutSnapshotArtifact(ctx context.Context, source *Manifest, version string, imageRef string, files SnapshotFiles, tags ...string) (*Manifest, error) {
 	if s == nil {
 		return nil, errors.New("artifact store required")
@@ -96,6 +97,7 @@ func snapshotArtifacts(objects SnapshotObjects) map[string]Artifact {
 	}
 }
 
+// SnapshotObjectFiles maps microVM snapshot objects to their external remote references.
 func SnapshotObjectFiles(objects SnapshotObjects) map[string]*RemoteRef {
 	return map[string]*RemoteRef{
 		SnapshotConfigFile:      objects.Config,
@@ -105,41 +107,10 @@ func SnapshotObjectFiles(objects SnapshotObjects) map[string]*RemoteRef {
 	}
 }
 
-func assignSnapshotObject(objects *SnapshotObjects, role string, ref *RemoteRef) {
-	switch role {
-	case RoleSnapshotConfig:
-		objects.Config = ref
-	case RoleSnapshotState:
-		objects.State = ref
-	case RoleSnapshotMemoryIndex:
-		objects.MemoryIndex = ref
-	case RoleSnapshotRootfs:
-		objects.Rootfs = ref
-	}
-}
-
 func copyRuntimeConfig(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in)+1)
 	for key, value := range in {
 		out[key] = value
 	}
 	return out
-}
-
-func objectRoleName(role string, sum string) string {
-	return strings.ReplaceAll(role, ".", "-") + "-" + sum
-}
-
-func hashSnapshotFile(path string) (string, int64, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", 0, err
-	}
-	defer file.Close()
-	h := blake3.New()
-	n, err := io.Copy(h, file)
-	if err != nil {
-		return "", 0, err
-	}
-	return hex.EncodeToString(h.Sum(nil)), n, nil
 }

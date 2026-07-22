@@ -8,6 +8,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
+// Store is the interface for workflow state storage.
 type Store interface {
 	InitWorkflow(ctx context.Context, wf *Workflow) error
 	GetWorkflow(ctx context.Context, id string) (*Workflow, error)
@@ -15,20 +16,24 @@ type Store interface {
 	GetTaskState(ctx context.Context, wfID, taskID string) (*TaskResult, error)
 	IsWorkflowCompleted(ctx context.Context, wfID string) (bool, error)
 	CancelWorkflow(ctx context.Context, wfID string) error
-	AggregateResult(ctx context.Context, wfID string) (*WorkflowResult, error)
+	AggregateResult(ctx context.Context, wfID string) (*Result, error)
 	UpdateProgress(ctx context.Context, wfID string) error
 }
 
+// Publisher is the interface for publishing workflow messages.
 type Publisher interface {
 	Publish(ctx context.Context, subject string, data []byte) error
 }
 
+// PublisherFunc is a function that implements the Publisher interface.
 type PublisherFunc func(ctx context.Context, subject string, data []byte) error
 
+// Publish implements the Publisher interface.
 func (f PublisherFunc) Publish(ctx context.Context, subject string, data []byte) error {
 	return f(ctx, subject, data)
 }
 
+// Metrics is the interface for workflow engine metrics.
 type Metrics interface {
 	WorkflowStarted()
 	WorkflowCompleted(id string, dur float64)
@@ -45,6 +50,7 @@ func (noopMetrics) WorkflowFailed(string)             {}
 func (noopMetrics) TaskQueued(string)                 {}
 func (noopMetrics) MessageError(string)               {}
 
+// EngineConfig is the configuration for a workflow engine.
 type EngineConfig struct {
 	Store                  Store
 	Publisher              Publisher
@@ -55,6 +61,7 @@ type EngineConfig struct {
 	Metrics                Metrics
 }
 
+// Engine is the workflow orchestrator.
 type Engine struct {
 	store                  Store
 	pub                    Publisher
@@ -65,6 +72,7 @@ type Engine struct {
 	metrics                Metrics
 }
 
+// NewEngine creates a new Engine.
 func NewEngine(cfg EngineConfig) *Engine {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -83,6 +91,7 @@ func NewEngine(cfg EngineConfig) *Engine {
 	}
 }
 
+// HandleWorkflow processes a new workflow submission.
 func (e *Engine) HandleWorkflow(msg jetstream.Msg) {
 	e.metrics.WorkflowStarted()
 
@@ -90,7 +99,7 @@ func (e *Engine) HandleWorkflow(msg jetstream.Msg) {
 	if err != nil {
 		e.metrics.MessageError("parse")
 		e.log.Error("parse failed", "error", err)
-		msg.Nak()
+		_ = msg.Nak()
 		return
 	}
 
@@ -98,7 +107,7 @@ func (e *Engine) HandleWorkflow(msg jetstream.Msg) {
 
 	if err := e.store.InitWorkflow(context.Background(), wf); err != nil {
 		log.Error("init failed", "error", err)
-		msg.Nak()
+		_ = msg.Nak()
 		return
 	}
 
@@ -110,7 +119,7 @@ func (e *Engine) HandleWorkflow(msg jetstream.Msg) {
 		}
 	}
 
-	msg.Ack()
+	_ = msg.Ack()
 }
 
 func (e *Engine) publishTask(ctx context.Context, t *Task) error {

@@ -9,6 +9,7 @@ import (
 	"github.com/wlow/wlow/pkg/artifact"
 )
 
+// Workflow represents a set of tasks with dependencies.
 type Workflow struct {
 	ID           string              `json:"id"`
 	Tasks        map[string]Task     `json:"tasks"`
@@ -18,6 +19,7 @@ type Workflow struct {
 	StartedAt    time.Time           `json:"started_at"`
 }
 
+// Task represents a single unit of work in a workflow.
 type Task struct {
 	WorkflowID       string                 `json:"workflow_id"`
 	ID               string                 `json:"id"`
@@ -29,18 +31,27 @@ type Task struct {
 	Input            map[string]any         `json:"input"`
 }
 
+// TaskStatus represents the current state of a task.
 type TaskStatus string
 
 const (
-	StatusPending   TaskStatus = "pending"
-	StatusQueued    TaskStatus = "queued"
-	StatusRunning   TaskStatus = "running"
+	// StatusPending means the task is waiting to be processed.
+	StatusPending TaskStatus = "pending"
+	// StatusQueued means the task has been sent to a processor.
+	StatusQueued TaskStatus = "queued"
+	// StatusRunning means the task is currently being executed.
+	StatusRunning TaskStatus = "running"
+	// StatusCompleted means the task finished successfully.
 	StatusCompleted TaskStatus = "completed"
-	StatusFailed    TaskStatus = "failed"
+	// StatusFailed means the task failed during execution.
+	StatusFailed TaskStatus = "failed"
+	// StatusCancelled means the task was cancelled.
 	StatusCancelled TaskStatus = "cancelled"
-	StatusTimedOut  TaskStatus = "timed_out"
+	// StatusTimedOut means the task exceeded its allocated time.
+	StatusTimedOut TaskStatus = "timed_out"
 )
 
+// TaskResult contains the output or error of a task execution.
 type TaskResult struct {
 	WorkflowID   string         `json:"workflow_id"`
 	TaskID       string         `json:"task_id"`
@@ -50,24 +61,28 @@ type TaskResult struct {
 	ErrorMessage string         `json:"error_message,omitempty"`
 }
 
-type WorkflowResult struct {
+// Result contains the aggregated results of a workflow.
+type Result struct {
 	WorkflowID  string         `json:"workflow_id"`
 	Status      TaskStatus     `json:"status"`
 	TaskResults []TaskResult   `json:"task_results"`
-	Error       *WorkflowError `json:"error,omitempty"`
+	Error       *Error         `json:"error,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
-type WorkflowError struct {
+// Error contains error details for a failed workflow.
+type Error struct {
 	ProcessorID string `json:"processor_id,omitempty"`
 	TaskID      string `json:"task_id,omitempty"`
 	Message     string `json:"message"`
 }
 
-type WorkflowCancel struct {
+// Cancel is a request to cancel a workflow.
+type Cancel struct {
 	WorkflowID string `json:"workflow_id"`
 }
 
+// ParseWorkflow parses a workflow from JSON data and validates it.
 func ParseWorkflow(data []byte) (*Workflow, error) {
 	var wf Workflow
 	if err := json.Unmarshal(data, &wf); err != nil {
@@ -124,6 +139,7 @@ func hasCycle(id string, deps map[string][]string, visited, stack map[string]boo
 	return false
 }
 
+// RouteSubject returns the NATS subject to route the task to.
 func (t Task) RouteSubject() string {
 	if t.ExecutionMode != artifact.ExecutionSandboxed {
 		return t.Subject
@@ -134,6 +150,7 @@ func (t Task) RouteSubject() string {
 	return fmt.Sprintf("PROCESSOR.sandbox.%s", t.ProcessorID)
 }
 
+// ProcessorRef returns the processor ID and version.
 func (t Task) ProcessorRef() (string, string) {
 	id := t.ProcessorID
 	if id == "" {
@@ -146,6 +163,7 @@ func (t Task) ProcessorRef() (string, string) {
 	return id, version
 }
 
+// TenantID returns the tenant ID for the task.
 func (t Task) TenantID() string {
 	if t.Tenant == "" {
 		return artifact.DefaultTenant
@@ -153,6 +171,7 @@ func (t Task) TenantID() string {
 	return t.Tenant
 }
 
+// RootTasks returns the tasks in the workflow that have no dependencies.
 func (w *Workflow) RootTasks() []Task {
 	var roots []Task
 	for id, t := range w.Tasks {
@@ -165,6 +184,7 @@ func (w *Workflow) RootTasks() []Task {
 	return roots
 }
 
+// Dependents returns the IDs of tasks that depend on the given task.
 func (w *Workflow) Dependents(taskID string) []string {
 	var out []string
 	for id, deps := range w.Dependencies {

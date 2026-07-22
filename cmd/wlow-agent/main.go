@@ -61,7 +61,7 @@ func run(ctx context.Context) error {
 		mountPseudoFS()
 	}
 	ensureDefaultPath()
-	go watchVmGenID(ctx)
+	go watchVMGenID(ctx)
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		conn, err := dialHost(ctx)
 		if err != nil {
@@ -301,7 +301,7 @@ func commandError(err error, output []byte) string {
 	return err.Error() + ": " + string(output)
 }
 
-func watchVmGenID(ctx context.Context) {
+func watchVMGenID(ctx context.Context) {
 	last := readID()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()

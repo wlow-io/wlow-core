@@ -12,17 +12,21 @@ import (
 	"github.com/zeebo/blake3"
 )
 
+// OutputCacheBucket is the default NATS KV bucket name for task output caching.
 const OutputCacheBucket = "wlow-output-cache"
 
+// OutputCache is the interface for caching task execution results.
 type OutputCache interface {
 	Get(ctx context.Context, key string) (*TaskResult, bool, error)
 	Put(ctx context.Context, key string, result *TaskResult) error
 }
 
+// NATSOutputCache implements OutputCache using NATS KeyValue store.
 type NATSOutputCache struct {
 	kv jetstream.KeyValue
 }
 
+// NewNATSOutputCache creates a new NATSOutputCache.
 func NewNATSOutputCache(ctx context.Context, js jetstream.JetStream, ttl time.Duration) (*NATSOutputCache, error) {
 	if js == nil {
 		return nil, errors.New("jetstream required")
@@ -40,6 +44,7 @@ func NewNATSOutputCache(ctx context.Context, js jetstream.JetStream, ttl time.Du
 	return &NATSOutputCache{kv: kv}, nil
 }
 
+// Get retrieves a cached task result.
 func (c *NATSOutputCache) Get(ctx context.Context, key string) (*TaskResult, bool, error) {
 	entry, err := c.kv.Get(ctx, key)
 	if errors.Is(err, jetstream.ErrKeyNotFound) {
@@ -52,6 +57,7 @@ func (c *NATSOutputCache) Get(ctx context.Context, key string) (*TaskResult, boo
 	return &result, true, json.Unmarshal(entry.Value(), &result)
 }
 
+// Put stores a task result in the cache.
 func (c *NATSOutputCache) Put(ctx context.Context, key string, result *TaskResult) error {
 	data, err := json.Marshal(result)
 	if err != nil {
@@ -61,6 +67,7 @@ func (c *NATSOutputCache) Put(ctx context.Context, key string, result *TaskResul
 	return err
 }
 
+// OutputCacheKey generates a deterministic cache key for a task.
 func OutputCacheKey(processorID, version string, input map[string]any) (string, error) {
 	data, err := json.Marshal(input)
 	if err != nil {

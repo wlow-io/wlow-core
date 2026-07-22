@@ -9,6 +9,7 @@ import (
 	"github.com/wlow/wlow/pkg/artifact"
 )
 
+// ExecuteRequest contains all the information needed to execute a task in a sandbox.
 type ExecuteRequest struct {
 	Manifest     *artifact.Manifest
 	Bytes        []byte
@@ -17,25 +18,30 @@ type ExecuteRequest struct {
 	Input        map[string]any
 }
 
+// SnapshotRootfs describes the local file system state for a microVM snapshot.
 type SnapshotRootfs struct {
 	Dir        string
 	RootfsPath string
 }
 
+// ExecuteResult contains the output of a sandboxed execution.
 type ExecuteResult struct {
 	Output map[string]any
 }
 
+// Executor is the interface for sandboxed task execution environments.
 type Executor interface {
 	Runtime() artifact.Runtime
 	Execute(ctx context.Context, req ExecuteRequest) (*ExecuteResult, error)
 }
 
+// ExecutorRegistry manages available task executors.
 type ExecutorRegistry struct {
 	mu        sync.RWMutex
 	executors map[artifact.Runtime]Executor
 }
 
+// NewExecutorRegistry creates a new registry with the given executors.
 func NewExecutorRegistry(executors ...Executor) (*ExecutorRegistry, error) {
 	reg := &ExecutorRegistry{executors: make(map[artifact.Runtime]Executor)}
 	for _, executor := range executors {
@@ -46,6 +52,7 @@ func NewExecutorRegistry(executors ...Executor) (*ExecutorRegistry, error) {
 	return reg, nil
 }
 
+// DefaultExecutorRegistry creates a registry with all standard executors.
 func DefaultExecutorRegistry() (*ExecutorRegistry, error) {
 	return NewExecutorRegistry(
 		newWasmExecutor(DefaultPolicy()),
@@ -82,6 +89,7 @@ func RegistryFor(dataDir string, runtimes ...artifact.Runtime) (*ExecutorRegistr
 	return NewExecutorRegistry(executors...)
 }
 
+// Register adds a new executor to the registry.
 func (r *ExecutorRegistry) Register(executor Executor) error {
 	if r == nil {
 		return errors.New("executor registry required")
@@ -99,6 +107,7 @@ func (r *ExecutorRegistry) Register(executor Executor) error {
 	return nil
 }
 
+// Get retrieves an executor for the given runtime.
 func (r *ExecutorRegistry) Get(runtime artifact.Runtime) (Executor, error) {
 	if r == nil {
 		return nil, errors.New("executor registry required")

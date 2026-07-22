@@ -12,11 +12,13 @@ import (
 	"github.com/wlow/wlow/pkg/artifact"
 )
 
+// WasmExecutor executes tasks in a WebAssembly sandbox using Wasmtime.
 type WasmExecutor struct {
 	engine *wasmtime.Engine
 	policy Policy
 }
 
+// NewWasmExecutor creates a new WebAssembly executor with the given policy.
 func NewWasmExecutor(policy Policy) *WasmExecutor {
 	cfg := wasmtime.NewConfig()
 	cfg.SetConsumeFuel(true)
@@ -27,10 +29,12 @@ func NewWasmExecutor(policy Policy) *WasmExecutor {
 	}
 }
 
+// Runtime returns the WebAssembly runtime identifier.
 func (e *WasmExecutor) Runtime() artifact.Runtime {
 	return artifact.RuntimeWasm
 }
 
+// Execute runs the WebAssembly module and returns the results.
 func (e *WasmExecutor) Execute(ctx context.Context, req ExecuteRequest) (*ExecuteResult, error) {
 	if e == nil || e.engine == nil {
 		return nil, errors.New("wasm executor required")

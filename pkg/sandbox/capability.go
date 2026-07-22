@@ -7,6 +7,7 @@ import (
 	"github.com/wlow/wlow/pkg/artifact"
 )
 
+// WlowCoreWIT is the WIT (WebAssembly Interface Type) definition for the core wlow interfaces.
 const WlowCoreWIT = `package wlow:core@0.1.0;
 
 interface context {
@@ -63,10 +64,12 @@ world effectful-processor {
   export process: func(input: list<u8>) -> result<list<u8>, string>;
 }`
 
+// Policy defines the set of allowed capabilities for a sandbox.
 type Policy struct {
 	Allowed []artifact.Capability
 }
 
+// DefaultPolicy returns a policy that allows all standard capabilities.
 func DefaultPolicy() Policy {
 	return Policy{
 		Allowed: []artifact.Capability{
@@ -81,6 +84,7 @@ func DefaultPolicy() Policy {
 	}
 }
 
+// DeterministicPolicy returns a policy restricted to deterministic capabilities.
 func DeterministicPolicy() Policy {
 	return Policy{
 		Allowed: []artifact.Capability{
@@ -91,6 +95,7 @@ func DeterministicPolicy() Policy {
 	}
 }
 
+// Authorize checks if the given manifest's required capabilities are allowed by the policy.
 func (p Policy) Authorize(m *artifact.Manifest) error {
 	if m == nil {
 		return errors.New("manifest required")

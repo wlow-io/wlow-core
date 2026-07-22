@@ -7,15 +7,21 @@ import (
 	"github.com/wlow/wlow/pkg/artifact"
 )
 
+// SourceKind defines the type of source code or artifact being built.
 type SourceKind string
 
 const (
-	SourceWasm       SourceKind = "wasm"
+	// SourceWasm indicates a WebAssembly component source.
+	SourceWasm SourceKind = "wasm"
+	// SourceDockerfile indicates a Dockerfile source for MicroVM rootfs.
 	SourceDockerfile SourceKind = "dockerfile"
-	SourceTarball    SourceKind = "tarball"
-	SourceBinary     SourceKind = "binary"
+	// SourceTarball indicates a rootfs tarball source.
+	SourceTarball SourceKind = "tarball"
+	// SourceBinary indicates a native binary executable source.
+	SourceBinary SourceKind = "binary"
 )
 
+// Options contains parameters for the build process.
 type Options struct {
 	Kind          SourceKind
 	Path          string
@@ -33,6 +39,7 @@ type Options struct {
 	ImageRef      string
 }
 
+// Spec contains the result of a build, including the manifest and artifact data.
 type Spec struct {
 	Data     []byte
 	Path     string
@@ -40,10 +47,12 @@ type Spec struct {
 	Tags     []string
 }
 
+// Adapter is the interface for different build implementations.
 type Adapter interface {
 	Build(ctx context.Context, opts Options) (*Spec, error)
 }
 
+// Build executes a build based on the provided options.
 func Build(ctx context.Context, opts Options) (*Spec, error) {
 	if opts.ProcessorID == "" || opts.Version == "" {
 		return nil, errors.New("processor id and version required")

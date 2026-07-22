@@ -43,7 +43,6 @@ func dialVsock(_ context.Context, cid, port uint32) (net.Conn, error) {
 	return c, nil
 }
 
-
 func configureCommandRoot(cmd *exec.Cmd, root string) {
 	if root == "" {
 		return

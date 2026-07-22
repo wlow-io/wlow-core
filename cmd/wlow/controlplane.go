@@ -176,7 +176,7 @@ func startControlPlane(ctx context.Context, flags controlPlaneFlags) error {
 	cancelConsumer, err := client.CreateConsumer(ctx, wlownats.ConsumerConfig{
 		Name:          "cancel-consumer",
 		Stream:        streamName,
-		FilterSubject: workflow.CancelSubject(cfg.WorkflowSubjectPrefix),
+		FilterSubject: workflow.CancelRequestSubject(cfg.WorkflowSubjectPrefix),
 		MaxDeliver:    cfg.MaxRetries,
 		AckWait:       cfg.AckTimeout,
 	})

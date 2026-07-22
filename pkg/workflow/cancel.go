@@ -8,6 +8,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
+// CancelHandlerConfig is the configuration for a CancelHandler.
 type CancelHandlerConfig struct {
 	Store                 Store
 	Publisher             Publisher
@@ -15,6 +16,7 @@ type CancelHandlerConfig struct {
 	Logger                *slog.Logger
 }
 
+// CancelHandler handles workflow cancellation requests.
 type CancelHandler struct {
 	store                 Store
 	pub                   Publisher
@@ -22,6 +24,7 @@ type CancelHandler struct {
 	log                   *slog.Logger
 }
 
+// NewCancelHandler creates a new CancelHandler.
 func NewCancelHandler(cfg CancelHandlerConfig) *CancelHandler {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -34,11 +37,12 @@ func NewCancelHandler(cfg CancelHandlerConfig) *CancelHandler {
 	}
 }
 
+// HandleCancel processes a workflow cancellation message.
 func (h *CancelHandler) HandleCancel(msg jetstream.Msg) {
-	var c WorkflowCancel
+	var c Cancel
 	if err := json.Unmarshal(msg.Data(), &c); err != nil {
 		h.log.Error("unmarshal failed", "error", err)
-		msg.Nak()
+		_ = msg.Nak()
 		return
 	}
 
@@ -46,11 +50,11 @@ func (h *CancelHandler) HandleCancel(msg jetstream.Msg) {
 
 	if err := h.store.CancelWorkflow(context.Background(), c.WorkflowID); err != nil {
 		log.Error("cancel failed", "error", err)
-		msg.Nak()
+		_ = msg.Nak()
 		return
 	}
 
-	h.pub.Publish(context.Background(), WorkflowCancelSubject(h.workflowSubjectPrefix, c.WorkflowID), nil)
+	_ = h.pub.Publish(context.Background(), CancelSubject(h.workflowSubjectPrefix, c.WorkflowID), nil)
 	log.Info("cancelled")
-	msg.Ack()
+	_ = msg.Ack()
 }

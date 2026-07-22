@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -19,11 +18,15 @@ import (
 )
 
 const (
-	DefaultStreamName    = "WLOW_PROCESSOR"
+	// DefaultStreamName is the default NATS JetStream name for processor tasks.
+	DefaultStreamName = "WLOW_PROCESSOR"
+	// DefaultSubjectPrefix is the default NATS subject prefix for processor tasks.
 	DefaultSubjectPrefix = "wlow.processor"
+	// DefaultFilterSubject is the default NATS subject filter for sandbox tasks.
 	DefaultFilterSubject = DefaultSubjectPrefix + ".sandbox.>"
 )
 
+// RunnerConfig contains the configuration for a sandbox Runner.
 type RunnerConfig struct {
 	Client                 *wlownats.Client
 	Store                  workflow.Store
@@ -46,6 +49,7 @@ type RunnerConfig struct {
 	Logger                 *slog.Logger
 }
 
+// Runner listens for and executes sandboxed tasks.
 type Runner struct {
 	cfg RunnerConfig
 	log *slog.Logger
@@ -56,6 +60,7 @@ type runnerConsumeContext struct {
 	cancel context.CancelFunc
 }
 
+// NewRunner creates a new sandbox Runner.
 func NewRunner(cfg RunnerConfig) (*Runner, error) {
 	if cfg.Client == nil {
 		return nil, errors.New("nats client required")
@@ -80,6 +85,7 @@ func NewRunner(cfg RunnerConfig) (*Runner, error) {
 	return &Runner{cfg: cfg, log: cfg.Logger}, nil
 }
 
+// Start begins consuming tasks from NATS.
 func (r *Runner) Start(ctx context.Context) (jetstream.ConsumeContext, error) {
 	stream, err := r.cfg.Client.CreateStream(ctx, streamConfig(r.cfg))
 	if err != nil {
@@ -99,7 +105,7 @@ func (r *Runner) Start(ctx context.Context) (jetstream.ConsumeContext, error) {
 		select {
 		case taskCh <- msg:
 		case <-workerCtx.Done():
-			msg.Nak()
+			_ = msg.Nak()
 		}
 	})
 	if err != nil {
@@ -209,20 +215,21 @@ func digestFromCacheName(name string) string {
 	return "sha256:" + value
 }
 
+// HandleTask processes a single NATS message as a workflow task.
 func (r *Runner) HandleTask(msg jetstream.Msg) {
 	var t workflow.Task
 	if err := json.Unmarshal(msg.Data(), &t); err != nil {
 		r.log.Error("sandbox unmarshal failed", "error", err)
-		msg.Nak()
+		_ = msg.Nak()
 		return
 	}
 	result := r.execute(context.Background(), &t)
 	if shouldRetry(msg, result, r.cfg.MaxRetries) {
-		msg.Nak()
+		_ = msg.Nak()
 		return
 	}
 	_ = r.publishResult(context.Background(), result)
-	msg.Ack()
+	_ = msg.Ack()
 }
 
 func (r *Runner) execute(ctx context.Context, t *workflow.Task) *workflow.TaskResult {
@@ -313,21 +320,11 @@ func (r *Runner) materializeSnapshot(ctx context.Context, manifest *artifact.Man
 	return nil
 }
 
-
-
 func (r *Runner) dataDir() string {
 	if r.cfg.DataDir != "" {
 		return r.cfg.DataDir
 	}
 	return "/var/lib/wlow"
-}
-
-func descriptorFileName(digest string) string {
-	_, value, ok := strings.Cut(digest, ":")
-	if !ok {
-		return digest
-	}
-	return value
 }
 
 func (r *Runner) cachedResult(ctx context.Context, t *workflow.Task, m *artifact.Manifest, processorID, ref string) (string, *workflow.TaskResult, error) {
@@ -453,25 +450,4 @@ func shouldRetry(msg jetstream.Msg, result *workflow.TaskResult, maxRetries int)
 	}
 	meta, err := msg.Metadata()
 	return err == nil && meta != nil && int(meta.NumDelivered) < maxRetries
-}
-
-func linkOrCopy(src string, dst string) error {
-	if src == "" || dst == "" {
-		return errors.New("source and destination required")
-	}
-	if err := os.Link(src, dst); err == nil {
-		return nil
-	}
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
 }

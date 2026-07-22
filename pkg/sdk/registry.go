@@ -6,6 +6,7 @@ import (
 	"reflect"
 )
 
+// ConfigField defines a configuration field for a processor.
 type ConfigField struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
@@ -15,6 +16,7 @@ type ConfigField struct {
 	EnvVar      string `json:"env_var,omitempty"`
 }
 
+// Definition describes a processor and its configuration/input/output schemas.
 type Definition struct {
 	ID           string        `json:"id"`
 	Name         string        `json:"name"`
@@ -27,16 +29,20 @@ type Definition struct {
 	Factory      Factory       `json:"-"`
 }
 
+// Factory is a function that creates a Handler from a configuration map.
 type Factory func(config map[string]any) (Handler, error)
 
+// Registry stores processor definitions.
 type Registry struct {
 	defs map[string]*Definition
 }
 
+// NewRegistry creates a new processor Registry.
 func NewRegistry() *Registry {
 	return &Registry{defs: make(map[string]*Definition)}
 }
 
+// Register adds a processor definition to the registry.
 func (r *Registry) Register(def *Definition) error {
 	if def.ID == "" {
 		return fmt.Errorf("id required")
@@ -51,11 +57,13 @@ func (r *Registry) Register(def *Definition) error {
 	return nil
 }
 
+// Get retrieves a processor definition by ID.
 func (r *Registry) Get(id string) (*Definition, bool) {
 	d, ok := r.defs[id]
 	return d, ok
 }
 
+// List returns all registered processor definitions.
 func (r *Registry) List() []*Definition {
 	out := make([]*Definition, 0, len(r.defs))
 	for _, d := range r.defs {
@@ -64,6 +72,7 @@ func (r *Registry) List() []*Definition {
 	return out
 }
 
+// Create instantiates a processor Handler using the registered factory.
 func (r *Registry) Create(id string, config map[string]any) (Handler, error) {
 	def, ok := r.defs[id]
 	if !ok {
@@ -104,25 +113,34 @@ func (r *Registry) applyDefaults(def *Definition, config map[string]any) (map[st
 	return result, nil
 }
 
+// JSON returns the JSON representation of the definition.
 func (def *Definition) JSON() ([]byte, error) {
 	return json.Marshal(def)
 }
 
-// Builder
-
+// Builder helps in creating processor definitions.
 type Builder struct {
 	def *Definition
 }
 
+// DefineProcessor starts a new processor definition with the given ID.
 func DefineProcessor(id string) *Builder {
 	return &Builder{def: &Definition{ID: id}}
 }
 
-func (b *Builder) Name(n string) *Builder        { b.def.Name = n; return b }
+// Name sets the name of the processor.
+func (b *Builder) Name(n string) *Builder { b.def.Name = n; return b }
+
+// Description sets the description of the processor.
 func (b *Builder) Description(d string) *Builder { b.def.Description = d; return b }
-func (b *Builder) Version(v string) *Builder     { b.def.Version = v; return b }
+
+// Version sets the version of the processor.
+func (b *Builder) Version(v string) *Builder { b.def.Version = v; return b }
+
+// Subjects sets the NATS subjects this processor handles.
 func (b *Builder) Subjects(s ...string) *Builder { b.def.Subjects = s; return b }
 
+// Config adds a configuration field to the processor definition.
 func (b *Builder) Config(name, typ, desc string, required bool, def any) *Builder {
 	b.def.ConfigSchema = append(b.def.ConfigSchema, ConfigField{
 		Name: name, Type: typ, Description: desc, Required: required, Default: def,
@@ -130,6 +148,7 @@ func (b *Builder) Config(name, typ, desc string, required bool, def any) *Builde
 	return b
 }
 
+// ConfigEnv adds a configuration field that can be populated from an environment variable.
 func (b *Builder) ConfigEnv(name, typ, desc, env string, def any) *Builder {
 	b.def.ConfigSchema = append(b.def.ConfigSchema, ConfigField{
 		Name: name, Type: typ, Description: desc, EnvVar: env, Default: def,
@@ -137,6 +156,7 @@ func (b *Builder) ConfigEnv(name, typ, desc, env string, def any) *Builder {
 	return b
 }
 
+// Input adds an input field to the processor definition schema.
 func (b *Builder) Input(name, typ, desc string, required bool) *Builder {
 	b.def.InputSchema = append(b.def.InputSchema, SchemaField{
 		Name: name, Type: typ, Description: desc, Required: required,
@@ -144,6 +164,7 @@ func (b *Builder) Input(name, typ, desc string, required bool) *Builder {
 	return b
 }
 
+// Output adds an output field to the processor definition schema.
 func (b *Builder) Output(name, typ, desc string) *Builder {
 	b.def.OutputSchema = append(b.def.OutputSchema, SchemaField{
 		Name: name, Type: typ, Description: desc,
@@ -151,13 +172,16 @@ func (b *Builder) Output(name, typ, desc string) *Builder {
 	return b
 }
 
+// Factory sets the factory function for the processor.
 func (b *Builder) Factory(f Factory) *Builder {
 	b.def.Factory = f
 	return b
 }
 
+// Build returns the final processor definition.
 func (b *Builder) Build() *Definition { return b.def }
 
+// MustRegister builds and registers the processor, panicking on failure.
 func (b *Builder) MustRegister(r *Registry) *Definition {
 	if err := r.Register(b.def); err != nil {
 		panic(err)
@@ -165,15 +189,18 @@ func (b *Builder) MustRegister(r *Registry) *Definition {
 	return b.def
 }
 
-// Config helpers
-
+// Configurable is a helper for processors that need to access their configuration.
 type Configurable struct {
 	cfg map[string]any
 }
 
+// SetConfig sets the configuration for the processor.
 func (c *Configurable) SetConfig(cfg map[string]any) { c.cfg = cfg }
-func (c *Configurable) Cfg() map[string]any          { return c.cfg }
 
+// Cfg returns the current configuration map.
+func (c *Configurable) Cfg() map[string]any { return c.cfg }
+
+// String retrieves a string configuration value.
 func (c *Configurable) String(k string) string {
 	if v, ok := c.cfg[k].(string); ok {
 		return v
@@ -181,6 +208,7 @@ func (c *Configurable) String(k string) string {
 	return ""
 }
 
+// Int retrieves an integer configuration value.
 func (c *Configurable) Int(k string) int {
 	switch v := c.cfg[k].(type) {
 	case int:
@@ -191,6 +219,7 @@ func (c *Configurable) Int(k string) int {
 	return 0
 }
 
+// Bool retrieves a boolean configuration value.
 func (c *Configurable) Bool(k string) bool {
 	if v, ok := c.cfg[k].(bool); ok {
 		return v
@@ -198,6 +227,7 @@ func (c *Configurable) Bool(k string) bool {
 	return false
 }
 
+// ParseConfig decodes a configuration map into a struct.
 func ParseConfig[T any](cfg map[string]any) (*T, error) {
 	data, err := json.Marshal(cfg)
 	if err != nil {
@@ -210,6 +240,7 @@ func ParseConfig[T any](cfg map[string]any) (*T, error) {
 	return &out, nil
 }
 
+// ConfigSchemaFrom generates a list of configuration fields from a struct using reflection.
 func ConfigSchemaFrom(v any) []ConfigField {
 	t := reflect.TypeOf(v)
 	if t.Kind() == reflect.Ptr {

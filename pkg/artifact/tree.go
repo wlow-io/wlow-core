@@ -4,6 +4,7 @@ import "errors"
 
 const maxManifestRefs = 1 << 20
 
+// ManifestPrimaryChunks returns the primary data chunks for a manifest.
 func ManifestPrimaryChunks(m *Manifest) []ChunkRef {
 	if m == nil {
 		return nil
@@ -17,6 +18,7 @@ func ManifestPrimaryChunks(m *Manifest) []ChunkRef {
 	return nil
 }
 
+// ManifestChunks returns all unique data chunks referenced by a manifest.
 func ManifestChunks(m *Manifest) []ChunkRef {
 	if m == nil {
 		return nil
@@ -32,6 +34,7 @@ func ManifestChunks(m *Manifest) []ChunkRef {
 	return dedupeChunks(out)
 }
 
+// ManifestCompositeRefs returns all sub-artifact references in a composite manifest.
 func ManifestCompositeRefs(m *Manifest) []CompositeRef {
 	if m == nil {
 		return nil
@@ -46,6 +49,7 @@ func ManifestCompositeRefs(m *Manifest) []CompositeRef {
 	return out
 }
 
+// ManifestOCIDescriptors returns all OCI descriptors referenced by a manifest.
 func ManifestOCIDescriptors(m *Manifest) []OCIDescriptor {
 	if m == nil {
 		return nil
@@ -62,6 +66,7 @@ func ManifestOCIDescriptors(m *Manifest) []OCIDescriptor {
 	return out
 }
 
+// ManifestObjectRefs returns all object references in a manifest.
 func ManifestObjectRefs(m *Manifest) []*ObjectRef {
 	if m == nil {
 		return nil
@@ -78,13 +83,14 @@ func ManifestObjectRefs(m *Manifest) []*ObjectRef {
 	return out
 }
 
+// ValidateArtifacts checks a map of artifacts for required fields and consistency.
 func ValidateArtifacts(artifacts map[string]Artifact) error {
 	for role, artifact := range artifacts {
 		if role == "" {
 			return errors.New("artifact role required")
 		}
 		if artifact.Kind == "" {
-			return errors.New("artifact kind required")
+			return errors.New("artifact_kind required")
 		}
 		if artifact.Kind == KindBlob && artifact.Blob == nil {
 			return errors.New("blob artifact requires blob ref")
@@ -105,6 +111,7 @@ func ValidateArtifacts(artifacts map[string]Artifact) error {
 	return nil
 }
 
+// ManifestObject retrieves a single object reference from a manifest by role.
 func ManifestObject(m *Manifest, role string) *ObjectRef {
 	if m == nil || role == "" {
 		return nil
@@ -116,6 +123,7 @@ func ManifestObject(m *Manifest, role string) *ObjectRef {
 	return artifact.Object
 }
 
+// ManifestRemote retrieves a single remote reference from a manifest by role.
 func ManifestRemote(m *Manifest, role string) *RemoteRef {
 	if m == nil || role == "" {
 		return nil
@@ -127,6 +135,7 @@ func ManifestRemote(m *Manifest, role string) *RemoteRef {
 	return artifact.Remote
 }
 
+// SnapshotObjects contains remote references to microVM snapshot components.
 type SnapshotObjects struct {
 	Config      *RemoteRef
 	State       *RemoteRef
@@ -134,6 +143,7 @@ type SnapshotObjects struct {
 	Rootfs      *RemoteRef
 }
 
+// ManifestSnapshotObjects retrieves all snapshot components from a manifest.
 func ManifestSnapshotObjects(m *Manifest) SnapshotObjects {
 	return SnapshotObjects{
 		Config:      ManifestRemote(m, RoleSnapshotConfig),
@@ -143,6 +153,7 @@ func ManifestSnapshotObjects(m *Manifest) SnapshotObjects {
 	}
 }
 
+// ManifestPlacementKeys returns unique keys for identifying and placing a manifest's workload.
 func ManifestPlacementKeys(m *Manifest) []string {
 	if m == nil {
 		return nil
@@ -164,6 +175,7 @@ func ManifestPlacementKeys(m *Manifest) []string {
 	return keys
 }
 
+// ManifestRemoteRefs returns all remote references in a manifest.
 func ManifestRemoteRefs(m *Manifest) []RemoteRef {
 	if m == nil {
 		return nil
@@ -204,11 +216,4 @@ func dedupeChunks(in []ChunkRef) []ChunkRef {
 		out = append(out, ref)
 	}
 	return out
-}
-
-func hasPrefix(value, prefix string) bool {
-	if len(value) < len(prefix) {
-		return false
-	}
-	return value[:len(prefix)] == prefix
 }

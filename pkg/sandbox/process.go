@@ -16,8 +16,10 @@ import (
 
 const artifactArg = "{artifact}"
 
+// ProcessExecutor executes tasks as local operating system processes.
 type ProcessExecutor struct{}
 
+// ProcessConfig defines the configuration for a process-based task.
 type ProcessConfig struct {
 	Command string            `json:"cmd"`
 	Args    []string          `json:"args,omitempty"`
@@ -25,14 +27,17 @@ type ProcessConfig struct {
 	WorkDir string            `json:"workdir,omitempty"`
 }
 
+// NewProcessExecutor creates a new process executor.
 func NewProcessExecutor() *ProcessExecutor {
 	return &ProcessExecutor{}
 }
 
+// Runtime returns the process runtime identifier.
 func (e *ProcessExecutor) Runtime() artifact.Runtime {
 	return artifact.RuntimeProcess
 }
 
+// Execute runs the process and returns the results.
 func (e *ProcessExecutor) Execute(ctx context.Context, req ExecuteRequest) (*ExecuteResult, error) {
 	if req.Manifest == nil {
 		return nil, errors.New("manifest required")

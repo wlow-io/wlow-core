@@ -7,14 +7,21 @@ import (
 )
 
 const (
+	// SnapshotMemoryIndexVersionV1 is the current version of the microVM memory page index.
 	SnapshotMemoryIndexVersionV1 = "v1"
-	SnapshotMemoryPageSize       = int64(4 * 1024)
-	DefaultSnapshotChunkSize     = int64(2 * 1024 * 1024)
-	MaxSnapshotChunkSize         = int64(16 * 1024 * 1024)
-	MaxSnapshotChunks            = 1 << 20
-	MaxSnapshotMemoryBytes       = int64(1 << 40)
+	// SnapshotMemoryPageSize is the alignment required for microVM memory pages (4KB).
+	SnapshotMemoryPageSize = int64(4 * 1024)
+	// DefaultSnapshotChunkSize is the default size for memory dump chunks (2MB).
+	DefaultSnapshotChunkSize = int64(2 * 1024 * 1024)
+	// MaxSnapshotChunkSize is the maximum allowed size for a single memory chunk (16MB).
+	MaxSnapshotChunkSize = int64(16 * 1024 * 1024)
+	// MaxSnapshotChunks is the maximum number of chunks allowed in a single snapshot.
+	MaxSnapshotChunks = 1 << 20
+	// MaxSnapshotMemoryBytes is the maximum total memory size allowed for a snapshot (1TB).
+	MaxSnapshotMemoryBytes = int64(1 << 40)
 )
 
+// SnapshotMemoryIndex describes the layout of a microVM memory dump.
 type SnapshotMemoryIndex struct {
 	Version     string                `json:"version"`
 	ChunkSize   int64                 `json:"chunk_size"`
@@ -23,6 +30,7 @@ type SnapshotMemoryIndex struct {
 	Layout      string                `json:"layout,omitempty"`
 }
 
+// SnapshotMemoryChunk describes a single compressed segment of a microVM memory dump.
 type SnapshotMemoryChunk struct {
 	Offset           int64  `json:"offset"`
 	Ref              string `json:"ref"`
@@ -34,6 +42,7 @@ type SnapshotMemoryChunk struct {
 	BLAKE3           string `json:"blake3"`
 }
 
+// Validate checks the memory index for internal consistency and limits.
 func (idx *SnapshotMemoryIndex) Validate() error {
 	if idx == nil {
 		return errors.New("snapshot memory index required")
